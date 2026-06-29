@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-GERMINAL_DIR="/workspace/germinal"
+GERMINAL_DIR="/germinal"
 SCRATCH_DIR="/scratch/Germinal/deGroot-data-dir"
 
 # Initialise germinal data if the directory is absent or empty
