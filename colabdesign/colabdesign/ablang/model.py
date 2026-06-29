@@ -1,4 +1,6 @@
+import os
 import ablang2
+import ablang2.load_model
 from ablang2.models.ablang2.vocab import ablang_vocab
 
 import numpy as np
@@ -46,13 +48,32 @@ class CustomAbLang(nn.Module):
             torch.manual_seed(seed)
 
     def _init_model(self) -> str:
-        """Load AbLang model (lazy, cached)."""
-        if self._model is not None:
-            return 'ablang2-paired' if self.is_scfv else 'ablang1-heavy'
-        model_to_use = 'ablang2-paired' if self.is_scfv else 'ablang1-heavy'
-        self._model = ablang2.pretrained(model_to_use=model_to_use, random_init=False, device=self.device)
-        self._model.freeze()
-        return model_to_use
+            """Load AbLang model (lazy, cached)."""
+            if self._model is not None:
+                return 'ablang2-paired' if self.is_scfv else 'ablang1-heavy'
+            model_to_use = 'ablang2-paired' if self.is_scfv else 'ablang1-heavy'
+
+            if not hasattr(ablang2.load_model, "_patched"):
+                orig_download_model = ablang2.load_model.download_model
+                def wrapped_download_model(model_name):
+                    # Point to space
+                    scratch_ablang_dir = "/scratch/Germinal/ablang_weights"
+                    os.makedirs(scratch_ablang_dir, exist_ok=True)
+                    old_file = ablang2.load_model.__file__
+                    ablang2.load_model.__file__ = os.path.join(scratch_ablang_dir, "load_model.py")
+                    try:
+                        return orig_download_model(model_name)
+                    finally:
+                        # Restore original file path pointer
+                        ablang2.load_model.__file__ = old_file
+
+                # Replace function in memory
+                ablang2.load_model.download_model = wrapped_download_model
+                ablang2.load_model._patched = True
+
+            self._model = ablang2.pretrained(model_to_use=model_to_use, random_init=False, device=self.device)
+            self._model.freeze()
+            return model_to_use
 
     def _map_probs_to_vocab(self, probs: torch.Tensor) -> torch.Tensor:
         """Map probabilities from ColabDesign residue order to AbLang vocabulary order."""
